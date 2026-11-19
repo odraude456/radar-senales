@@ -1970,6 +1970,15 @@ async function init(){
     started=true;gate.hidden=true;
     $('#authbar').hidden=false;$('#who').textContent=session.user.email||'';
     S.db=mkDb(sb);S.mode='db';
+    S.sm={json:async function(prompt,opts){
+      var ses=(await sb.auth.getSession()).data.session;
+      var r=await fetch(SUPA.url+'/functions/v1/radar-claude',{method:'POST',signal:opts&&opts.signal,
+        headers:{'Content-Type':'application/json','apikey':SUPA.key,'Authorization':'Bearer '+(ses?ses.access_token:'')},body:JSON.stringify({prompt:prompt})});
+      var d=null;try{d=await r.json()}catch(e){}
+      if(!r.ok||!d||d.json===undefined){var er=new Error((d&&d.message)||('Error '+r.status));er.code=(d&&d.error)||String(r.status);throw er}
+      return d.json;
+    }};
+    var lb=document.getElementById('i-go');
     S.db.collection('signals').onSnapshot(function(snap){
       S.signals=snap.docs.map(function(d){return d.data()});S.sigLoaded=true;$('#dbnote').innerHTML='';renderAll();
     },function(err){S.sigLoaded=true;$('#dbnote').innerHTML='<div class="notice">No se pudieron leer las señales ('+esc(err.code||err.message||'error')+').</div>';renderAll()});
