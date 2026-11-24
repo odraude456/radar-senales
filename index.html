@@ -450,6 +450,32 @@ h2 .fold{vertical-align:middle}
 .nat-b:hover{border-color:var(--accent)}
 .nat-b.on{background:var(--hero);color:#fff;border-color:var(--hero)}
 .nat-b.clr{border-style:dashed;color:var(--muted)}
+
+.mx-tabs{display:flex;gap:4px;padding:4px;border-radius:999px;background:var(--surface);border:1px solid var(--line);width:max-content;max-width:100%;overflow-x:auto;margin-bottom:10px}
+.mx-tab{border:0;background:transparent;color:var(--ink);padding:8px 16px;border-radius:999px;cursor:pointer;font:500 14px var(--f-body);white-space:nowrap}
+.mx-tab:hover{background:var(--soft)}
+.mx-tab.on{background:var(--hero);color:#fff}
+.mx-note{margin:0 0 12px;max-width:80ch}
+.mx-r b.sm{font-size:20px}
+.mx-c.scr{max-height:360px;overflow-y:auto}
+.mx-c[data-cap]::before{content:attr(data-cap);font:600 12.5px var(--f-body);color:var(--accent);padding:0 2px 4px}
+.radar-w{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:20px;padding:16px;align-items:center}
+.radar{width:100%;height:auto;max-height:78vh}
+.radar .rg{fill:none;stroke:var(--line);stroke-width:1}
+.radar .rg.core{fill:var(--soft)}
+.radar .ax{stroke:var(--line);stroke-width:1}
+.radar .rl{font:500 14px var(--f-body);fill:var(--muted)}
+.radar .dl{font:700 18px var(--f-display)}
+.radar .hit{fill:transparent}
+.radar .pt{fill:var(--c);stroke:var(--c);stroke-width:1.6}
+.radar .pt.lo{stroke-dasharray:2.5 2}
+.radar .dot{cursor:pointer;outline:none}
+.radar .dot:hover .pt,.radar .dot:focus-visible .pt{stroke:var(--ink);stroke-width:2.5}
+.radar-key{display:grid;gap:8px;font-size:13.5px;color:var(--muted);align-content:start}
+.radar-key b{color:var(--ink);font:700 16px var(--f-display)}
+.radar-key .k i{display:inline-block;border-radius:50%;background:var(--ink);vertical-align:middle;margin:0 4px 0 6px}
+.radar-key .d1{width:14px;height:14px;margin-left:0!important}.radar-key .d2{width:10px;height:10px}.radar-key .d3{width:7px;height:7px}
+@media (max-width:820px){.radar-w{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 #gate{position:fixed;inset:0;z-index:100;background:#0E2430;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background-image:repeating-radial-gradient(circle at 85% 10%,rgba(255,255,255,.07) 0 1px,transparent 1px 48px)}
@@ -526,6 +552,8 @@ h2 .fold{vertical-align:middle}
       <h2>Mapa por dominio y horizonte<button class="tip-i" type="button" data-tip="mapa" aria-label="Cómo leer el mapa">?</button></h2>
       <span class="hint">Clic en una señal para abrirla</span>
     </div>
+    <div class="mx-tabs" id="mxtabs" role="tablist" aria-label="Vista del mapa"></div>
+    <p class="hint mx-note" id="mxnote"></p>
     <div class="mxw"><div id="matrix"></div></div>
     <div class="legend" aria-label="Leyenda de certeza">
       <span>Certeza:</span>
@@ -890,24 +918,94 @@ function renderStats(){
   ];
   $('#stats').innerHTML=items.map(function(i){return '<div class="kpi" data-tip="kpi:'+i[0]+'"><b>'+i[1]+'</b><span>'+i[2]+'</span></div>'}).join('');
 }
-function renderMatrix(){
-  var list=filtered();
-  var h='<div class="mx" role="table" aria-label="Señales por dominio STEEP y horizonte"><div></div>';
-  STEEP.forEach(function(d){h+='<div class="mx-h" data-tip="steep:'+d.k+'" style="--c:var(--c-'+d.k+')"><i></i>'+d.n+'</div>'});
-  HORIZ.forEach(function(H){
-    h+='<div class="mx-r" data-tip="horizonte:'+H.k+'"><b>'+H.k+'</b><span>'+H.r+'</span></div>';
-    STEEP.forEach(function(d){
-      var cell=list.filter(function(s){return s.steep===d.k&&s.horizonte===H.k});
-      h+='<div class="mx-c" style="--c:var(--c-'+d.k+')">';
-      cell.slice(0,5).forEach(function(s){
-        h+='<button class="chip" type="button" data-open="'+esc(s.id)+'" title="'+esc(s.titulo)+'">'+glyph(s.certeza)+'<span>'+esc(excerpt(s.titulo,70))+'</span></button>';
-      });
-      if(cell.length>5)h+='<button class="more" type="button" data-cell="'+d.k+'|'+H.k+'">+'+(cell.length-5)+' más</button>';
+var VISTAS=[
+  {k:'steep',n:'Matriz',d:'Dominio STEEP en columnas y horizonte en filas. Para ver qué áreas del entorno se mueven y cuándo.'},
+  {k:'radar',n:'Radar',d:'Cada señal es un punto: más cerca del centro llega antes (H1), el sector es el dominio, el tamaño es el impacto y el relleno la certeza.'},
+  {k:'prio',n:'Prioridad',d:'Impacto contra certeza. Arriba a la derecha: señales de alto impacto y evidencia sólida. Arriba a la izquierda: alto impacto con poca evidencia, que conviene investigar.'},
+  {k:'tema',n:'Por tema',d:'Bienestar, salud a distancia y contexto en columnas, con el horizonte en filas.'},
+  {k:'nat',n:'Naturaleza',d:'Separa lo que cambia de verdad de lo que ya existía y recién vemos. Sirve para revisar el criterio de análisis.'}
+];
+function viewGet(){var v='steep';try{v=localStorage.getItem('radar-vista')||'steep'}catch(e){}return VISTAS.some(function(x){return x.k===v})?v:'steep'}
+function chipHtml(s){return '<button class="chip" type="button" style="--c:var(--c-'+esc(s.steep||'soc')+')" data-open="'+esc(s.id)+'" title="'+esc(s.titulo)+'">'+glyph(s.certeza)+'<span>'+esc(excerpt(s.titulo,70))+'</span></button>'}
+function gridView(list,o){
+  var n=o.cols.length;
+  var h='<div class="mx" role="table" aria-label="'+esc(o.label)+'" style="grid-template-columns:96px repeat('+n+',minmax(168px,1fr));min-width:'+(96+n*168)+'px"><div></div>';
+  o.cols.forEach(function(c){h+='<div class="mx-h"'+(c.tip?' data-tip="'+c.tip+'"':'')+' style="--c:'+c.c+'"><i></i>'+esc(c.n)+'</div>'});
+  o.rows.forEach(function(r){
+    h+='<div class="mx-r"'+(r.tip?' data-tip="'+r.tip+'"':'')+'><b'+(r.small?' class="sm"':'')+'>'+esc(r.b)+'</b><span>'+esc(r.s)+'</span></div>';
+    o.cols.forEach(function(c){
+      var cell=list.filter(function(x){return o.col(x)===c.k&&o.row(x)===r.k});
+      var cap=o.cap&&o.cap[r.k+'|'+c.k];
+      h+='<div class="mx-c'+(o.scroll?' scr':'')+'"'+(cap?' data-cap="'+esc(cap)+'"':'')+'>';
+      var max=o.max||5;
+      cell.slice(0,max).forEach(function(x){h+=chipHtml(x)});
+      if(cell.length>max)h+='<button class="more" type="button" data-cell="'+(o.dim?o.dim+':'+c.k:'')+'|'+r.k+'">+'+(cell.length-max)+' más</button>';
       h+='</div>';
     });
   });
-  h+='</div>';
-  $('#matrix').innerHTML=h;
+  return h+'</div>';
+}
+function radarView(list){
+  var W=700,cx=W/2,cy=W/2,r0=62,bw=88,gap=2;
+  var rad=function(d){return d*Math.PI/180};
+  var pt=function(r,d){return [cx+r*Math.sin(rad(d)),cy-r*Math.cos(rad(d))]};
+  var svg='<svg class="radar" viewBox="-30 -30 '+(W+60)+' '+(W+60)+'" role="group" aria-label="Radar de señales por dominio y horizonte">';
+  HORIZ.forEach(function(H,i){
+    var ro=r0+bw*(i+1);
+    svg+='<circle cx="'+cx+'" cy="'+cy+'" r="'+ro+'" class="rg"/>';
+    svg+='<text x="'+(cx+4)+'" y="'+(cy-(r0+bw*i)-6)+'" class="rl">'+H.k+' · '+H.r+'</text>';
+  });
+  svg+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r0+'" class="rg core"/>';
+  var step=360/STEEP.length;
+  STEEP.forEach(function(d,i){
+    var a0=i*step,p1=pt(r0,a0),p2=pt(r0+bw*3,a0),m=pt(r0+bw*3+26,a0+step/2);
+    svg+='<line x1="'+p1[0]+'" y1="'+p1[1]+'" x2="'+p2[0]+'" y2="'+p2[1]+'" class="ax"/>';
+    svg+='<text x="'+m[0]+'" y="'+m[1]+'" text-anchor="middle" dominant-baseline="middle" class="dl" style="fill:var(--c-'+d.k+')">'+esc(d.n)+'</text>';
+    HORIZ.forEach(function(H,j){
+      var cell=list.filter(function(x){return x.steep===d.k&&x.horizonte===H.k});
+      var n=cell.length;if(!n)return;
+      var m=Math.max(1,Math.ceil(Math.sqrt(n*1.5))),rows=Math.ceil(n/m);
+      var rin=r0+bw*j+10,rout=r0+bw*(j+1)-10;
+      var dr=n>14?4:n>8?5:1;
+      cell.forEach(function(x,k){
+        var ri=Math.floor(k/m),ci=k%m,inRow=Math.min(m,n-ri*m);
+        var r=rin+(ri+.5)/rows*(rout-rin);
+        var ang=a0+6+((ci+.5)/inRow)*(step-12);
+        var q=pt(r,ang),sz=({alto:9,medio:7,bajo:5.5})[x.impacto]||7;
+        if(n>14)sz*=.75;
+        var f=x.certeza==='alta'?'1':x.certeza==='media'?'.4':'0';
+        svg+='<g class="dot" role="button" tabindex="0" data-open="'+esc(x.id)+'" style="--c:var(--c-'+d.k+')"><title>'+esc(x.titulo)+'</title>'+
+          '<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="'+(sz+6)+'" class="hit"/>'+
+          '<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="'+sz+'" class="pt'+(x.certeza==='baja'?' lo':'')+'" style="fill-opacity:'+f+'"/></g>';
+      });
+    });
+  });
+  svg+='</svg>';
+  return '<div class="radar-w">'+svg+'<div class="radar-key"><b>Cómo leerlo</b><span>Centro = antes (H1). Borde = más lejos (H3).</span><span>Cada sector es un dominio STEEP.</span><span class="k"><i class="d1"></i> impacto alto <i class="d2"></i> medio <i class="d3"></i> bajo</span><span>Relleno: lleno = certeza alta, claro = media, vacío = baja.</span><span>Toca un punto para abrir la señal.</span></div></div>';
+}
+function renderMatrix(){
+  var list=filtered(),v=viewGet();
+  $('#mxtabs').innerHTML=VISTAS.map(function(x){return '<button type="button" role="tab" class="mx-tab'+(x.k===v?' on':'')+'" aria-selected="'+(x.k===v)+'" data-view="'+x.k+'">'+x.n+'</button>'}).join('');
+  var cur=VISTAS.filter(function(x){return x.k===v})[0];
+  $('#mxnote').textContent=cur.d;
+  var hz=HORIZ.map(function(H){return {k:H.k,b:H.k,s:H.r,tip:'horizonte:'+H.k}});
+  var out='';
+  if(v==='radar')out=radarView(list);
+  else if(v==='prio'){
+    out=gridView(list,{label:'Señales por impacto y certeza',max:60,scroll:true,
+      cols:CERT.slice().reverse().map(function(c){return {k:c.k,n:'Certeza '+c.n.toLowerCase(),c:'var(--accent)'}}),
+      rows:IMPACTO.map(function(i){return {k:i.k,b:i.n,s:'impacto',small:true}}),
+      col:function(x){return x.certeza},row:function(x){return x.impacto},
+      cap:{'alto|alta':'Actuar o preparar','alto|baja':'Investigar primero','bajo|alta':'Mantener a la vista','bajo|baja':'Puede esperar'}});
+  }
+  else if(v==='tema')out=gridView(list,{label:'Señales por tema y horizonte',dim:'tema',
+      cols:TEMA.map(function(t){return {k:t.k,n:t.n,c:'var(--accent)'}}),rows:hz,col:function(x){return x.tema},row:function(x){return x.horizonte}});
+  else if(v==='nat')out=gridView(list,{label:'Señales por naturaleza del cambio y horizonte',dim:'nat',
+      cols:NATUR.map(function(t){return {k:t.k,n:t.n,c:t.k==='emergente'?'var(--accent)':t.k==='preexistente'?'var(--amber)':'var(--muted)',tip:'naturaleza:'+t.k}}).concat([{k:'sin',n:'Sin evaluar',c:'var(--muted)'}]),
+      rows:hz,col:function(x){return x.naturaleza||'sin'},row:function(x){return x.horizonte}});
+  else out=gridView(list,{label:'Señales por dominio STEEP y horizonte',dim:'steep',
+      cols:STEEP.map(function(d){return {k:d.k,n:d.n,c:'var(--c-'+d.k+')',tip:'steep:'+d.k}}),rows:hz,col:function(x){return x.steep},row:function(x){return x.horizonte}});
+  $('#matrix').innerHTML=out;
 }
 function renderList(){
   var box=$('#list'),cnt=$('#lcount');
@@ -2085,6 +2183,7 @@ function setTema(k){
   renderThemes();renderStats();renderMatrix();renderList();
 }
 function bind(){
+  $('#matrix').addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('g.dot')){e.preventDefault();openDetail(e.target.closest('g.dot').getAttribute('data-open'))}});
   $('#q').addEventListener('input',function(e){S.f.q=e.target.value;renderMatrix();renderList()});
   [['f-steep','steep'],['f-h','h'],['f-cert','cert'],['f-clase','clase'],['f-estado','estado'],['f-rev','rev'],['f-nat','nat']].forEach(function(p){
     $('#'+p[0]).addEventListener('change',function(e){S.f[p[1]]=e.target.value;renderMatrix();renderList()});
@@ -2118,11 +2217,12 @@ function bind(){
   document.addEventListener('click',function(e){
     var ti=e.target.closest('.tip-i');
     if(ti){e.preventDefault();tipShow(ti);return}
-    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema],[data-nat]');
+    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema],[data-nat],[data-view]');
     if(!t){tipHide();return}
     if(t.hasAttribute('data-close')){$('#'+t.getAttribute('data-close')).close();return}
     if(t.hasAttribute('data-open')){openDetail(t.getAttribute('data-open'));return}
     if(t.hasAttribute('data-edit')){openForm(t.getAttribute('data-edit'));return}
+    if(t.hasAttribute('data-view')){try{localStorage.setItem('radar-vista',t.getAttribute('data-view'))}catch(e){}renderMatrix();return}
     if(t.hasAttribute('data-nat')){setNat(t.getAttribute('data-id'),t.getAttribute('data-nat'));return}
     if(t.hasAttribute('data-tema')){setTema(t.getAttribute('data-tema'));return}
     if(t.hasAttribute('data-del')){
@@ -2132,7 +2232,9 @@ function bind(){
     }
     if(t.hasAttribute('data-cell')){
       var p=t.getAttribute('data-cell').split('|');
-      S.f.steep=p[0];S.f.h=p[1];$('#f-steep').value=p[0];$('#f-h').value=p[1];
+      var dm=p[0].split(':'),dv=dm.length>1?dm[1]:p[0],dk=dm.length>1?dm[0]:'steep';
+      if(dk==='tema'){setTema(dv)}else if(dk==='nat'){S.f.nat=dv;$('#f-nat').value=dv}else{S.f.steep=dv;$('#f-steep').value=dv}
+      if(p[1]&&/^H\d$/.test(p[1])){S.f.h=p[1];$('#f-h').value=p[1]}
       renderMatrix();renderList();$('#filters').scrollIntoView({behavior:'smooth',block:'start'});return;
     }
     var a=t.getAttribute('data-act');
