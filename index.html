@@ -425,6 +425,15 @@ details.metodo{border-radius:16px}
   .kpi{border-left:0;border-top:1px solid var(--line)}
   .kpi:first-child{border-top:0}
 }
+
+.fold{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:inline-grid;place-items:center;cursor:pointer;margin-right:12px;flex:none;padding:0;transition:transform .15s,background .12s}
+.fold:hover{background:var(--soft)}
+.fold svg{transition:transform .15s}
+.collapsed .fold svg{transform:rotate(-90deg)}
+.collapsed > :not(.sec-h){display:none!important}
+.collapsed .sec-h{margin-bottom:0}
+.collapsed .sec-h .btns,.collapsed .sec-h .hint{display:none}
+h2 .fold{vertical-align:middle}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 #gate{position:fixed;inset:0;z-index:100;background:#0E2430;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background-image:repeating-radial-gradient(circle at 85% 10%,rgba(255,255,255,.07) 0 1px,transparent 1px 48px)}
@@ -2091,6 +2100,22 @@ function bind(){
   });
 }
 /* ---------- arranque ---------- */
+/* Secciones plegables */
+(function(){
+  var KEY='radar-plegado',st={};
+  try{st=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){}
+  var secs=[].slice.call(document.querySelectorAll('.wrap > section')).filter(function(x){return x.querySelector(':scope > .sec-h')});
+  var ids=['presion','mapa','senales','escenarios'];
+  secs.forEach(function(sec,i){
+    var id=ids[i]||('s'+i),h=sec.querySelector(':scope > .sec-h'),h2=h.querySelector('h2');
+    var b=document.createElement('button');b.type='button';b.className='fold';
+    var apply=function(c){sec.classList.toggle('collapsed',c);b.setAttribute('aria-expanded',String(!c));b.setAttribute('aria-label',(c?'Mostrar ':'Ocultar ')+(h2.firstChild.textContent||'').trim())};
+    b.innerHTML='<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    b.addEventListener('click',function(){var c=!sec.classList.contains('collapsed');apply(c);st[id]=c;try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}});
+    h2.insertBefore(b,h2.firstChild);
+    apply(!!st[id]);
+  });
+})();
 /* ---------- Supabase (versión alojada en GitHub) ---------- */
 var SUPA={url:'https://jebjdcdztzcncmzqyfxb.supabase.co',key:'sb_publishable_GGzzIEDqOgwYiMHlE3037g_BlLDTJFv'};
 var TBL={signals:'radar_senales',escenarios:'radar_escenarios'};
