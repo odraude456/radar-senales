@@ -65,6 +65,29 @@ h1{font:700 clamp(30px,4.6vw,44px)/1.02 var(--f-display);letter-spacing:-.025em;
 .th.on .th-s{color:inherit;opacity:.85}
 .theme-note{margin:10px 2px 0;color:var(--muted);font-size:14px;max-width:72ch}
 
+
+/* Índice de presión */
+.pr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.pr{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:14px 16px;display:grid;gap:10px;min-width:0;align-content:start}
+.pr-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.pr-n{font:600 16px/1.2 var(--f-display)}
+.pr-s{font:12px var(--f-mono);color:var(--muted)}
+.pr-v{font:700 34px/1 var(--f-display);letter-spacing:-.02em;text-align:right}
+.pr-band{display:inline-block;font:600 11.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;border:1px solid currentColor}
+.pr-baja{color:var(--muted)}
+.pr-media{color:var(--c-eco)}
+.pr-alta{color:var(--danger)}
+.pr-bar{height:6px;border-radius:4px;background:var(--soft);overflow:hidden}
+.pr-bar i{display:block;height:100%;background:currentColor}
+.pr-d{font:12.5px/1.35 var(--f-mono);color:var(--muted)}
+.pr-d b{color:var(--ink)}
+.pr-facts{display:flex;flex-wrap:wrap;gap:4px 12px;font:12px var(--f-mono);color:var(--muted)}
+.pr-top3{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.pr-top3 button{all:unset;cursor:pointer;font-size:13px;line-height:1.35;color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.pr-top3 button:hover{text-decoration-color:var(--ink)}
+.pr-how{margin-top:10px;color:var(--muted);font-size:13px;max-width:80ch}
+.pr-how summary{cursor:pointer;font-weight:600;color:var(--ink)}
+
 /* Indicadores */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:14px;border-block:1px solid var(--line);padding-block:16px}
 .kpi{display:grid;gap:3px;cursor:help;align-content:start}
@@ -332,6 +355,18 @@ dialog::backdrop{background:rgba(8,14,12,.55)}
   <section aria-label="Tema">
     <div class="themes" id="themes"></div>
     <p class="theme-note" id="theme-note"></p>
+  </section>
+
+
+  <section aria-label="Índice de presión por tema">
+    <div class="sec-h">
+      <h2>Índice de presión por tema</h2>
+      <span class="hint">Qué tema se está calentando, con movimiento frente a hace 7 días</span>
+    </div>
+    <div class="pr-grid" id="pressure"></div>
+    <details class="pr-how"><summary>¿Cómo se calcula?</summary>
+      <p>Cada señal activa suma un peso: impacto (alto 3, medio 2, bajo 1) × certeza (alta 1, media 0,7, baja 0,4) × frescura (hasta 7 días 1; hasta 30 días 0,75; hasta 90 días 0,5; más antigua 0,3). Las descartadas y los ejemplos no cuentan. El índice es 100 × (1 − e<sup>−suma/20</sup>): crece rápido con las primeras señales y se aplana después. Bandas: baja (menos de 35), media (35 a 64), alta (65 o más). El movimiento compara con las señales que ya existían hace 7 días; si el historial es corto, el cambio refleja sobre todo lo que cargaste esta semana. Es una guía para decidir dónde mirar, no una medida del futuro.</p>
+    </details>
   </section>
 
   <div class="kpis" id="stats" aria-live="polite"></div>
@@ -753,7 +788,55 @@ function renderFoot(){
   var n=S.signals.filter(function(s){return s.ejemplo}).length;
   $('#foot-ej').innerHTML=n?'<button class="btn sm ghost" type="button" data-act="rmexamples">Borrar los '+n+' ejemplos</button>':'';
 }
-function renderAll(){renderFrame();renderThemes();renderStats();renderMatrix();renderList();renderFoot();renderEsc()}
+
+/* ---------- índice de presión ---------- */
+var PR_IMP={alto:3,medio:2,bajo:1},PR_CER={alta:1,media:.7,baja:.4},PR_K=20,DAY=86400000;
+function prWeight(sg,asOf){
+  var t=Date.parse(sg.creado||sg.fechaObs||'');
+  if(isNaN(t))t=asOf;
+  if(t>asOf)return null;
+  var age=(asOf-t)/DAY;
+  var fr=age<=7?1:age<=30?.75:age<=90?.5:.3;
+  return (PR_IMP[sg.impacto]||2)*(PR_CER[sg.certeza]||.4)*fr;
+}
+function prScore(list,asOf){
+  var sum=0,items=[];
+  list.forEach(function(sg){
+    if(sg.estado==='descartada'||sg.ejemplo)return;
+    var w=prWeight(sg,asOf);
+    if(w===null)return;
+    sum+=w;items.push({s:sg,w:w});
+  });
+  return {sum:sum,idx:Math.round(100*(1-Math.exp(-sum/PR_K))),items:items};
+}
+function prBand(v){return v>=65?['alta','Presión alta']:v>=35?['media','Presión media']:['baja','Presión baja']}
+function renderPressure(){
+  var box=$('#pressure');if(!box)return;
+  var now=Date.now(),prev=now-7*DAY;
+  box.innerHTML=TEMA.map(function(t){
+    var list=S.signals.filter(function(sg){return sg.tema===t.k});
+    var a=prScore(list,now),b=prScore(list,prev);
+    var band=prBand(a.idx),d=a.idx-b.idx;
+    var delta;
+    if(!a.items.length)delta='Sin señales activas';
+    else if(!b.items.length)delta='<b>Nuevo</b>: sin señales hace 7 días';
+    else delta='<b>'+(d>0?'▲ +'+d:d<0?'▼ '+d:'= 0')+'</b> pts frente a hace 7 días';
+    var n=a.items.length;
+    var pc=function(f){return n?Math.round(100*a.items.filter(f).length/n):0};
+    var riesgo=a.items.filter(function(x){return x.s.polaridad==='riesgo'}).length;
+    var opor=a.items.filter(function(x){return x.s.polaridad==='oportunidad'}).length;
+    var top=a.items.slice().sort(function(x,y){return y.w-x.w}).slice(0,3);
+    return '<div class="pr"><div class="pr-top"><div><div class="pr-n">'+esc(t.n)+'</div><div class="pr-s">'+esc(t.s)+'</div></div>'+
+      '<div><div class="pr-v">'+a.idx+'</div></div></div>'+
+      '<div class="pr-'+band[0]+'"><span class="pr-band">'+band[1]+'</span></div>'+
+      '<div class="pr-bar pr-'+band[0]+'" role="img" aria-label="Índice '+a.idx+' de 100"><i style="width:'+a.idx+'%"></i></div>'+
+      '<div class="pr-d">'+delta+'</div>'+
+      '<div class="pr-facts"><span>'+n+(n===1?' señal':' señales')+'</span><span>'+pc(function(x){return x.s.certeza==='alta'})+'% certeza alta</span><span>'+pc(function(x){return x.s.horizonte==='H1'})+'% en H1</span><span>'+riesgo+' riesgo · '+opor+' oportunidad</span></div>'+
+      (top.length?'<ul class="pr-top3" aria-label="Señales que más pesan">'+top.map(function(x){return '<li><button type="button" data-open="'+esc(x.s.id)+'">'+esc(excerpt(x.s.titulo,78))+'</button></li>'}).join('')+'</ul>':'')+
+      '</div>';
+  }).join('');
+}
+function renderAll(){renderFrame();renderThemes();renderPressure();renderStats();renderMatrix();renderList();renderFoot();renderEsc()}
 
 /* ---------- detalle ---------- */
 function openDetail(id){
