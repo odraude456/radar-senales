@@ -442,6 +442,14 @@ h2 .fold{vertical-align:middle}
 .filters{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .filters .fq{grid-column:span 2}
 @media (max-width:820px){.filters{grid-template-columns:1fr 1fr}.filters .fq{grid-column:1/-1}}
+
+.nat-box{display:grid;gap:14px;padding:14px 16px;border-radius:14px;background:var(--soft);border-left:4px solid var(--amber)}
+.nat-q{display:grid;gap:8px;padding:14px 16px;border-radius:14px;background:var(--soft);border-left:4px solid var(--amber)}
+.nat-q .seg{display:flex;flex-wrap:wrap;gap:8px}
+.nat-b{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;cursor:pointer;font:500 14px var(--f-body)}
+.nat-b:hover{border-color:var(--accent)}
+.nat-b.on{background:var(--hero);color:#fff;border-color:var(--hero)}
+.nat-b.clr{border-style:dashed;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 #gate{position:fixed;inset:0;z-index:100;background:#0E2430;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background-image:repeating-radial-gradient(circle at 85% 10%,rgba(255,255,255,.07) 0 1px,transparent 1px 48px)}
@@ -1023,6 +1031,8 @@ function openDetail(id){
     cell('Estado','estado',tv('estado',s.estado,esc(lab(ESTADO,s.estado))))+
   '</div>';
 
+  h+='<div class="nat-q"><b>¿Cambio nuevo o algo que ya existía?</b><div class="seg" role="group">'+NATUR.map(function(o){return '<button type="button" class="nat-b'+(s.naturaleza===o.k?' on':'')+'" data-nat="'+o.k+'" data-id="'+esc(s.id)+'" aria-pressed="'+(s.naturaleza===o.k)+'">'+o.n+'</button>'}).join('')+(s.naturaleza?'<button type="button" class="nat-b clr" data-nat="" data-id="'+esc(s.id)+'">Quitar</button>':'')+'</div></div>';
+
   h+='<div class="sec"><h4>Qué se observó <small>Hecho y fuente</small></h4>';
   if(s.observacion)h+='<div class="fld">'+fl('Observación','observacion')+'<p class="txt">'+esc(s.observacion)+'</p></div>';
   h+=(s.natNota?'<div class="fld">'+fl('Naturaleza: por qué','naturaleza')+'<p class="txt">'+esc(s.natNota)+'</p></div>':'')+'<div class="fld">'+fl('Fuente','fuente')+(srcText(s.fuente)?'<p class="txt">'+esc(srcText(s.fuente))+'</p>':'')+(urls(s.fuente).length?'<div class="srcs">'+urls(s.fuente).map(function(u){return '<a class="srcb" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer"><b>Abrir fuente original ↗</b><span>'+esc(u)+'</span></a>'}).join('')+'</div>':'<p class="txt">Sin enlace registrado.</p>')+'</div>';
@@ -1084,7 +1094,10 @@ function openForm(id){
     '<div class="g2"><div class="fld"><span class="fl">Horizonte'+TI('horizonte')+'</span>'+seg('horizonte',HORIZ.map(function(x){return {k:x.k,n:x.k+' · '+x.r}}),v.horizonte)+'</div>'+
     '<div class="fld"><span class="fl">Certeza'+TI('certeza')+'</span>'+seg('certeza',CERT,v.certeza)+'</div></div>'+
     '<div class="g2"><div class="fld"><span class="fl">Impacto potencial'+TI('impacto')+'</span>'+seg('impacto',IMPACTO,v.impacto)+'</div>'+
-    '<div class="fld"><span class="fl">Estado'+TI('estado')+'</span><select id="f-estado-s">'+ESTADO.map(function(o){return '<option value="'+o.k+'"'+(v.estado===o.k?' selected':'')+'>'+o.n+'</option>'}).join('')+'</select></div></div></div>';
+    '<div class="fld"><span class="fl">Estado'+TI('estado')+'</span><select id="f-estado-s">'+ESTADO.map(function(o){return '<option value="'+o.k+'"'+(v.estado===o.k?' selected':'')+'>'+o.n+'</option>'}).join('')+'</select></div></div>'+
+    '<div class="nat-box"><div class="fld"><span class="fl">¿Cambio nuevo o algo que ya existía?'+TI('naturaleza')+'</span>'+seg('naturaleza',NATUR,v.naturaleza,'',true)+'<span class="hint">Pregúntate: ¿hay dos mediciones comparables? ¿cambió el método de medir? ¿alguien actúa distinto? ¿es una primera vez?</span></div>'+
+    '<div class="fld"><span class="fl"><label for="f-natnota">Por qué lo crees</label></span><textarea id="f-natnota" rows="2" placeholder="Ej.: primera medición nacional, no hay serie anterior; o: la cifra sube frente a 2023.">'+esc(v.natNota||'')+'</textarea></div>'+
+    '<label class="chk"><input type="checkbox" id="f-rev-c"'+(v.revisada?' checked':'')+'><span><b>Ya revisé esta señal.</b><small>Abrí la fuente, evalué la naturaleza y confirmé la certeza.</small></span></label></div></div>';
 
   h+='<div class="sec"><h4>3 · Lectura del futuro <small>Cap. XIV y XXII</small></h4>'+
     '<div class="fld"><span class="fl">Fuerza (Triángulo de futuros)'+TI('fuerza')+'</span>'+seg('fuerza',FUERZA,v.fuerza,'',true)+'</div>'+
@@ -1096,12 +1109,9 @@ function openForm(id){
 
   h+='<div class="sec"><h4>4 · Contraste <small>Cap. III y VI</small></h4>'+
     '<div class="fld"><span class="fl"><label for="f-contra">Contraevidencia</label>'+TI('contra')+'</span><textarea id="f-contra" rows="2" placeholder="¿Qué dato u opinión contradice esta señal? ¿Quién piensa distinto?">'+esc(v.contra)+'</textarea></div>'+
-    '<div class="fld"><span class="fl">¿Cambio nuevo o algo que ya existía?'+TI('naturaleza')+'</span>'+seg('naturaleza',NATUR,v.naturaleza,'',true)+'<span class="hint">Pregúntate: ¿hay dos mediciones comparables? ¿cambió el método de medir? ¿alguien actúa distinto? ¿es una primera vez?</span></div>'+
-    '<div class="fld"><span class="fl"><label for="f-natnota">Por qué lo crees</label></span><textarea id="f-natnota" rows="2" placeholder="Ej.: primera medición nacional, no hay serie anterior; o: la cifra sube frente a 2023.">'+esc(v.natNota||'')+'</textarea></div>'+
     '<div class="fld"><span class="fl">Revisión de sesgos'+TI('sesgos')+'</span>'+SESGOS.map(function(b){
       return '<label class="chk"><input type="checkbox" name="sesgo" value="'+b.k+'"'+((v.sesgos||{})[b.k]?' checked':'')+'><span><b>'+b.n+'.</b> '+b.q+'</span></label>';}).join('')+'</div>'+
     '<div class="fld"><span class="fl"><label for="f-aver">Qué falta averiguar</label>'+TI('averiguar')+'</span><textarea id="f-aver" rows="2">'+esc(v.averiguar)+'</textarea></div>'+
-    '<label class="chk"><input type="checkbox" id="f-rev-c"'+(v.revisada?' checked':'')+'><span><b>Ya revisé esta señal.</b><small>Abrí la fuente, evalué la naturaleza y confirmé la certeza.</small></span></label>'+
     '<div class="fld"><span class="fl"><label for="f-sig">Siguiente paso</label>'+TI('siguiente')+'</span><input id="f-sig" type="text" value="'+esc(v.siguiente)+'" placeholder="Hablar con un experto, buscar datos, volver a mirar en tres meses…"></div></div>';
 
   var others=S.signals.filter(function(x){return !s||x.id!==s.id});
@@ -1132,6 +1142,12 @@ async function persist(sig){
   if(S.db)await S.db.collection('signals').doc(sig.id).set(clean);
   var i=S.signals.findIndex(function(x){return x.id===sig.id});
   if(i>=0)S.signals[i]=clean;else S.signals.push(clean);
+}
+async function setNat(id,v){
+  var s=byId(id);if(!s)return;
+  var n=Object.assign({},s,{naturaleza:v,actualizado:new Date().toISOString()});
+  try{await persist(n);renderAll();openDetail(id);toast(v?'Naturaleza guardada':'Naturaleza quitada')}
+  catch(e){toast('No se pudo guardar. Inténtalo de nuevo.')}
 }
 async function toggleRev(id){
   var s=byId(id);if(!s)return;
@@ -2102,11 +2118,12 @@ function bind(){
   document.addEventListener('click',function(e){
     var ti=e.target.closest('.tip-i');
     if(ti){e.preventDefault();tipShow(ti);return}
-    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema]');
+    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema],[data-nat]');
     if(!t){tipHide();return}
     if(t.hasAttribute('data-close')){$('#'+t.getAttribute('data-close')).close();return}
     if(t.hasAttribute('data-open')){openDetail(t.getAttribute('data-open'));return}
     if(t.hasAttribute('data-edit')){openForm(t.getAttribute('data-edit'));return}
+    if(t.hasAttribute('data-nat')){setNat(t.getAttribute('data-id'),t.getAttribute('data-nat'));return}
     if(t.hasAttribute('data-tema')){setTema(t.getAttribute('data-tema'));return}
     if(t.hasAttribute('data-del')){
       if(t.getAttribute('data-sure')){removeSignal(t.getAttribute('data-del'))}
