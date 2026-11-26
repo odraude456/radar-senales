@@ -487,6 +487,9 @@ ul.trash li{border:1px solid var(--line);border-radius:14px;padding:12px 14px;di
 .obs li+li{border-top:1px solid var(--line,rgba(0,0,0,.1))}
 .obs b{font-weight:500;font-size:13px;color:var(--muted);line-height:1.9}
 .obs li>span{min-width:0}
+.com textarea{width:100%;min-height:76px;resize:vertical}
+.com-row{display:flex;justify-content:flex-end;margin-top:8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (max-width:640px){.obs li{grid-template-columns:1fr;row-gap:2px}.obs{padding:4px 14px}}
 
 #gate{position:fixed;inset:0;z-index:100;background:#0E2430;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background-image:repeating-radial-gradient(circle at 85% 10%,rgba(255,255,255,.07) 0 1px,transparent 1px 48px)}
@@ -889,7 +892,7 @@ function filtered(){
     if(S.f.rev==='no'&&s.revisada)return false;
     if(S.f.nat==='sin'){if(s.naturaleza)return false}else if(S.f.nat&&s.naturaleza!==S.f.nat)return false;
     if(q){
-      var hay=[s.titulo,s.observacion,s.fuente,(s.etiquetas||[]).join(' '),s.o1,s.o2,s.o3,s.contra].join(' ').toLowerCase();
+      var hay=[s.titulo,s.observacion,s.comentario,s.fuente,(s.etiquetas||[]).join(' '),s.o1,s.o2,s.o3,s.contra].join(' ').toLowerCase();
       if(hay.indexOf(q)<0)return false;
     }
     return true;
@@ -1155,6 +1158,7 @@ function openDetail(id){
   if(s.etiquetas&&s.etiquetas.length)h+='<div class="fld">'+fl('Etiquetas','etiquetas')+'<span>#'+s.etiquetas.map(esc).join(' #')+'</span></div>';
   h+='</div>';
 
+  h+='<div class="sec"><h4>Comentario <small>Notas tuyas sobre esta señal</small></h4><div class="fld com"><label class="sr" for="d-com">Comentario</label><textarea id="d-com" rows="3" maxlength="1500" placeholder="Agrega un comentario si hace falta: duda, contexto, a quién consultar…">'+esc(s.comentario||'')+'</textarea><div class="com-row"><button type="button" class="btn" data-savecom="'+esc(s.id)+'">Guardar comentario</button></div></div></div>';
   if(s.o1||s.o2||s.o3){
     h+='<div class="sec"><h4>Lectura del futuro <small>Rueda de futuros</small></h4><ul class="steps">';
     [['1er orden',s.o1,'rueda:o1'],['2do orden',s.o2,'rueda:o2'],['3er orden',s.o3,'rueda:o3']].forEach(function(x){if(x[1])h+='<li>'+fl(x[0],x[2])+'<p class="txt">'+esc(x[1])+'</p></li>'});
@@ -1211,6 +1215,7 @@ function openForm(id){
     '<div class="fld"><span class="fl">Estado'+TI('estado')+'</span><select id="f-estado-s">'+ESTADO.map(function(o){return '<option value="'+o.k+'"'+(v.estado===o.k?' selected':'')+'>'+o.n+'</option>'}).join('')+'</select></div></div>'+
     '<div class="nat-box"><div class="fld"><span class="fl">¿Cambio nuevo o algo que ya existía?'+TI('naturaleza')+'</span>'+seg('naturaleza',NATUR,v.naturaleza,'',true)+'<span class="hint">Pregúntate: ¿hay dos mediciones comparables? ¿cambió el método de medir? ¿alguien actúa distinto? ¿es una primera vez?</span></div>'+
     '<div class="fld"><span class="fl"><label for="f-natnota">Por qué lo crees</label></span><textarea id="f-natnota" rows="2" placeholder="Ej.: primera medición nacional, no hay serie anterior; o: la cifra sube frente a 2023.">'+esc(v.natNota||'')+'</textarea></div>'+
+    '<div class="fld"><span class="fl"><label for="f-com">Comentario</label></span><textarea id="f-com" rows="2" maxlength="1500" placeholder="Opcional: una nota tuya sobre esta señal.">'+esc(v.comentario)+'</textarea></div>'+
     '<label class="chk"><input type="checkbox" id="f-rev-c"'+(v.revisada?' checked':'')+'><span><b>Ya revisé esta señal.</b><small>Abrí la fuente, evalué la naturaleza y confirmé la certeza.</small></span></label></div></div>';
 
   h+='<div class="sec"><h4>3 · Lectura del futuro <small>Cap. XIV y XXII</small></h4>'+
@@ -1247,7 +1252,7 @@ function readForm(f){
   var tags=g('f-tags').split(',').map(function(t){return t.trim().replace(/^#/,'')}).filter(Boolean).slice(0,12);
   return {tema:r('tema'),titulo:g('f-titulo'),observacion:g('f-obs'),fuente:g('f-fuente'),tipoFuente:g('f-tf'),fechaObs:g('f-fecha'),etiquetas:tags,
     steep:r('steep'),clase:r('clase'),horizonte:r('horizonte'),certeza:r('certeza'),impacto:r('impacto'),estado:g('f-estado-s'),
-    fuerza:r('fuerza'),polaridad:r('polaridad'),naturaleza:r('naturaleza'),natNota:g('f-natnota'),revisada:!!(f.querySelector('#f-rev-c')&&f.querySelector('#f-rev-c').checked),o1:g('f-o1'),o2:g('f-o2'),o3:g('f-o3'),
+    fuerza:r('fuerza'),polaridad:r('polaridad'),naturaleza:r('naturaleza'),natNota:g('f-natnota'),comentario:g('f-com'),revisada:!!(f.querySelector('#f-rev-c')&&f.querySelector('#f-rev-c').checked),o1:g('f-o1'),o2:g('f-o2'),o3:g('f-o3'),
     contra:g('f-contra'),sesgos:sesgos,averiguar:g('f-aver'),siguiente:g('f-sig'),conexiones:con};
 }
 async function persist(sig){
@@ -1261,6 +1266,13 @@ async function setNat(id,v){
   var s=byId(id);if(!s)return;
   var n=Object.assign({},s,{naturaleza:v,actualizado:new Date().toISOString()});
   try{await persist(n);renderAll();openDetail(id);toast(v?'Naturaleza guardada':'Naturaleza quitada')}
+  catch(e){toast('No se pudo guardar. Inténtalo de nuevo.')}
+}
+async function saveCom(id){
+  var s=byId(id);var el=document.getElementById('d-com');if(!s||!el)return;
+  var v=el.value.trim().slice(0,1500);if(v===(s.comentario||'')){toast('Sin cambios en el comentario');return}
+  var n=Object.assign({},s,{comentario:v,actualizado:new Date().toISOString()});
+  try{await persist(n);renderAll();openDetail(id);toast(v?'Comentario guardado':'Comentario quitado')}
   catch(e){toast('No se pudo guardar. Inténtalo de nuevo.')}
 }
 async function toggleRev(id){
@@ -1417,7 +1429,7 @@ function mdReport(){
   return L.join('\n');
 }
 function csvReport(){
-  var cols=[['id','id'],['titulo','titulo'],['tema',function(s){return lab(TEMA,s.tema)}],['observacion','observacion'],['dominio',function(s){return lab(STEEP,s.steep)}],['clase',function(s){return lab(CLASE,s.clase)}],['horizonte','horizonte'],['certeza','certeza'],['impacto','impacto'],['estado',function(s){return lab(ESTADO,s.estado)}],['fuerza',function(s){return lab(FUERZA,s.fuerza)}],['polaridad','polaridad'],['naturaleza',function(s){return lab(NATUR,s.naturaleza)||'sin evaluar'}],['naturaleza_nota','natNota'],['revisada',function(s){return s.revisada?'sí':'no'}],['fuente','fuente'],['enlace',function(s){return urls(s.fuente).join(' ')}],['tipo_fuente',function(s){return lab(FUENTE,s.tipoFuente)}],['fecha_observacion','fechaObs'],['etiquetas',function(s){return (s.etiquetas||[]).join('; ')}],['orden_1','o1'],['orden_2','o2'],['orden_3','o3'],['contraevidencia','contra'],['por_averiguar','averiguar'],['siguiente_paso','siguiente'],['actualizado','actualizado']];
+  var cols=[['id','id'],['titulo','titulo'],['tema',function(s){return lab(TEMA,s.tema)}],['observacion','observacion'],['dominio',function(s){return lab(STEEP,s.steep)}],['clase',function(s){return lab(CLASE,s.clase)}],['horizonte','horizonte'],['certeza','certeza'],['impacto','impacto'],['estado',function(s){return lab(ESTADO,s.estado)}],['fuerza',function(s){return lab(FUERZA,s.fuerza)}],['polaridad','polaridad'],['naturaleza',function(s){return lab(NATUR,s.naturaleza)||'sin evaluar'}],['naturaleza_nota','natNota'],['comentario','comentario'],['revisada',function(s){return s.revisada?'sí':'no'}],['fuente','fuente'],['enlace',function(s){return urls(s.fuente).join(' ')}],['tipo_fuente',function(s){return lab(FUENTE,s.tipoFuente)}],['fecha_observacion','fechaObs'],['etiquetas',function(s){return (s.etiquetas||[]).join('; ')}],['orden_1','o1'],['orden_2','o2'],['orden_3','o3'],['contraevidencia','contra'],['por_averiguar','averiguar'],['siguiente_paso','siguiente'],['actualizado','actualizado']];
   var q=function(v){v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   var rows=[cols.map(function(c){return c[0]}).join(',')];
   S.signals.forEach(function(s){rows.push(cols.map(function(c){return q(typeof c[1]==='function'?c[1](s):s[c[1]])}).join(','))});
@@ -1460,6 +1472,7 @@ function cleanCand(r,fuente,fecha){
     polaridad:keyOf(POLAR,r.polaridad),
     naturaleza:keyOf(NATUR,g('naturaleza')),
     natNota:str(g('natNota','naturaleza_nota'),300),
+    comentario:str(g('comentario'),1500),
     revisada:/^(si|sí|true|1|x)$/i.test(String(g('revisada')||'').trim()),
     tipoFuente:keyOf(FUENTE,g('tipoFuente','tipo_fuente'))||'desk',
     fuente:str(r.fuente,500)||fuente,
@@ -1473,7 +1486,7 @@ function cleanCand(r,fuente,fecha){
 }
 /* ---------- md-import ---------- */
 var MDKEY={titulo:'titulo',tema:'tema',dominio:'dominio',steep:'dominio',clase:'clase',horizonte:'horizonte',certeza:'certeza',impacto:'impacto',
-  polaridad:'polaridad',naturaleza:'naturaleza',naturaleza_nota:'naturaleza_nota',revisada:'revisada',fuerza:'fuerza',estado:'estado',tipo_fuente:'tipo_fuente',fecha_observacion:'fecha_observacion',fuente:'fuente',enlace:'enlace',
+  polaridad:'polaridad',naturaleza:'naturaleza',naturaleza_nota:'naturaleza_nota',comentario:'comentario',revisada:'revisada',fuerza:'fuerza',estado:'estado',tipo_fuente:'tipo_fuente',fecha_observacion:'fecha_observacion',fuente:'fuente',enlace:'enlace',
   etiquetas:'etiquetas',observacion:'observacion','1er_orden':'orden_1',orden_1:'orden_1','2do_orden':'orden_2',orden_2:'orden_2','3er_orden':'orden_3',orden_3:'orden_3',
   contraevidencia:'contraevidencia',por_averiguar:'por_averiguar',siguiente_paso:'siguiente_paso'};
 function mdKey(k){return MDKEY[normT(k).replace(/ /g,'_')]||''}
@@ -2091,7 +2104,7 @@ function dataTables(){
     var u=urls(s.fuente),sb=s.sesgos||{};
     return {id:s.id,titulo:s.titulo,tema:nm(TEMA,s.tema),dominio_steep:nm(STEEP,s.steep),clase:nm(CLASE,s.clase),horizonte:s.horizonte||'',
       certeza:nm(CERT,s.certeza),impacto:nm(IMPACTO,s.impacto),polaridad:nm(POLAR,s.polaridad),fuerza:nm(FUERZA,s.fuerza),estado:nm(ESTADO,s.estado),
-      observacion:s.observacion||'',fuente:srcText(s.fuente),enlace:u[0]||'',enlaces_adicionales:u.slice(1).join(' '),tipo_fuente:nm(FUENTE,s.tipoFuente),
+      observacion:s.observacion||'',comentario:s.comentario||'',fuente:srcText(s.fuente),enlace:u[0]||'',enlaces_adicionales:u.slice(1).join(' '),tipo_fuente:nm(FUENTE,s.tipoFuente),
       fecha_observacion:s.fechaObs||'',etiquetas:(s.etiquetas||[]).join('; '),orden_1:s.o1||'',orden_2:s.o2||'',orden_3:s.o3||'',
       contraevidencia:s.contra||'',por_averiguar:s.averiguar||'',siguiente_paso:s.siguiente||'',
       sesgo_pasado_revisado:yn(sb.pasado),sesgo_linea_base_revisado:yn(sb.linea),sesgo_optimismo_revisado:yn(sb.optimismo),
@@ -2192,7 +2205,7 @@ function xlsxBlob(){
     XLSX.utils.book_append_sheet(wb,ws,name);
   };
   put('resumen',dataSummary(),{seccion:18,'categoría':22});
-  put('señales',T.señales,{id:10,titulo:52,observacion:70,fuente:34,enlace:44,enlaces_adicionales:30,orden_1:50,orden_2:50,orden_3:50,contraevidencia:50,por_averiguar:40,siguiente_paso:40,etiquetas:24},['enlace']);
+  put('señales',T.señales,{id:10,titulo:52,observacion:70,comentario:40,fuente:34,enlace:44,enlaces_adicionales:30,orden_1:50,orden_2:50,orden_3:50,contraevidencia:50,por_averiguar:40,siguiente_paso:40,etiquetas:24},['enlace']);
   put('fuentes',T.fuentes,{'señal':52,enlace:60,sitio:24},['enlace']);
   put('conexiones',T.conexiones,{desde:48,hacia:48});
   put('escenarios',T.escenarios,{conjunto:30,pregunta:44,eje_horizontal:28,polo_horizontal:26,eje_vertical:28,polo_vertical:26,escenario:44,mundo:80,diferencias_con_hoy:60,hitos:50,titular:40,dia_a_dia:50,vulnerables:40,oportunidades:50,amenazas:50,preguntas:60,por_averiguar:50,alertas_tempranas:60,limites_de_la_base:50});
@@ -2271,7 +2284,7 @@ function bind(){
   document.addEventListener('click',function(e){
     var ti=e.target.closest('.tip-i');
     if(ti){e.preventDefault();tipShow(ti);return}
-    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema],[data-nat],[data-view],[data-restore],[data-purge]');
+    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema],[data-nat],[data-savecom],[data-view],[data-restore],[data-purge]');
     if(!t){tipHide();return}
     if(t.hasAttribute('data-close')){$('#'+t.getAttribute('data-close')).close();return}
     if(t.hasAttribute('data-open')){openDetail(t.getAttribute('data-open'));return}
@@ -2279,6 +2292,7 @@ function bind(){
     if(t.hasAttribute('data-restore')){restoreSignal(t.getAttribute('data-restore'));return}
     if(t.hasAttribute('data-purge')){if(t.getAttribute('data-sure')){purgeSignal(t.getAttribute('data-purge'))}else{t.setAttribute('data-sure','1');t.textContent='Confirmar: borrar';setTimeout(function(){if(t.isConnected){t.removeAttribute('data-sure');t.textContent='Eliminar para siempre'}},4000)}return}
     if(t.hasAttribute('data-view')){try{localStorage.setItem('radar-vista',t.getAttribute('data-view'))}catch(e){}renderMatrix();return}
+    if(t.hasAttribute('data-savecom')){saveCom(t.getAttribute('data-savecom'));return}
     if(t.hasAttribute('data-nat')){setNat(t.getAttribute('data-id'),t.getAttribute('data-nat'));return}
     if(t.hasAttribute('data-tema')){setTema(t.getAttribute('data-tema'));return}
     if(t.hasAttribute('data-del')){
@@ -2339,7 +2353,7 @@ var TBL={signals:'radar_senales',escenarios:'radar_escenarios'};
 function nul(v){return (v===''||v===undefined)?null:v}
 function sigToRow(o){
   var r={id:o.id,titulo:o.titulo||'',tema:nul(o.tema),steep:o.steep,clase:o.clase||'debil',horizonte:o.horizonte||'H2',certeza:o.certeza||'baja',impacto:o.impacto||'medio',
-    polaridad:nul(o.polaridad),naturaleza:nul(o.naturaleza),naturaleza_nota:o.natNota||'',revisada:!!o.revisada,revisada_en:o.revisadaEn||null,papelera:!!o.papelera,papelera_en:o.papeleraEn||null,reapariciones:o.reapariciones||0,fuerza:nul(o.fuerza),estado:o.estado||'nueva',tipo_fuente:nul(o.tipoFuente),
+    polaridad:nul(o.polaridad),naturaleza:nul(o.naturaleza),naturaleza_nota:o.natNota||'',comentario:o.comentario||'',revisada:!!o.revisada,revisada_en:o.revisadaEn||null,papelera:!!o.papelera,papelera_en:o.papeleraEn||null,reapariciones:o.reapariciones||0,fuerza:nul(o.fuerza),estado:o.estado||'nueva',tipo_fuente:nul(o.tipoFuente),
     fecha_observacion:/^\d{4}-\d\d-\d\d$/.test(o.fechaObs||'')?o.fechaObs:null,
     observacion:o.observacion||'',fuente:o.fuente||'',enlaces:urls((o.fuente||'')).filter(function(u,i,a){return a.indexOf(u)===i}),
     etiquetas:o.etiquetas||[],orden_1:o.o1||'',orden_2:o.o2||'',orden_3:o.o3||'',contraevidencia:o.contra||'',por_averiguar:o.averiguar||'',
@@ -2350,7 +2364,7 @@ function sigToRow(o){
 }
 function sigFromRow(r){
   return {id:r.id,titulo:r.titulo,tema:r.tema||'',steep:r.steep,clase:r.clase,horizonte:r.horizonte,certeza:r.certeza,impacto:r.impacto,
-    polaridad:r.polaridad||'',naturaleza:r.naturaleza||'',natNota:r.naturaleza_nota||'',revisada:!!r.revisada,revisadaEn:r.revisada_en||'',papelera:!!r.papelera,papeleraEn:r.papelera_en||'',reapariciones:r.reapariciones||0,fuerza:r.fuerza||'',estado:r.estado,tipoFuente:r.tipo_fuente||'',fechaObs:r.fecha_observacion||'',
+    polaridad:r.polaridad||'',naturaleza:r.naturaleza||'',natNota:r.naturaleza_nota||'',comentario:r.comentario||'',revisada:!!r.revisada,revisadaEn:r.revisada_en||'',papelera:!!r.papelera,papeleraEn:r.papelera_en||'',reapariciones:r.reapariciones||0,fuerza:r.fuerza||'',estado:r.estado,tipoFuente:r.tipo_fuente||'',fechaObs:r.fecha_observacion||'',
     observacion:r.observacion||'',fuente:r.fuente||'',etiquetas:r.etiquetas||[],o1:r.orden_1||'',o2:r.orden_2||'',o3:r.orden_3||'',
     contra:r.contraevidencia||'',averiguar:r.por_averiguar||'',siguiente:r.siguiente_paso||'',sesgos:r.sesgos||{},conexiones:r.conexiones||[],
     origen:r.origen||'',ejemplo:!!r.ejemplo,creado:r.creado,actualizado:r.actualizado};
