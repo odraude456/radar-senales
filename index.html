@@ -482,6 +482,9 @@ ul.trash li{border:1px solid var(--line);border-radius:14px;padding:12px 14px;di
 .tr-t{font:600 15.5px/1.3 var(--f-display)}
 .tr-m{font-size:13px;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.obs{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:8px}
+.obs li{line-height:1.5;padding-left:0}
+.obs b{font-weight:600;color:var(--ink,inherit)}
 
 #gate{position:fixed;inset:0;z-index:100;background:#0E2430;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background-image:repeating-radial-gradient(circle at 85% 10%,rgba(255,255,255,.07) 0 1px,transparent 1px 48px)}
 #gate .box{background:#fff;color:#0E2430;border-radius:22px;padding:32px 28px;max-width:400px;width:100%;box-sizing:border-box;box-shadow:0 24px 70px rgba(0,0,0,.35)}
@@ -864,6 +867,9 @@ function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()
 function newId(){return 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function byId(id){for(var i=0;i<S.signals.length;i++){if(S.signals[i].id===id)return S.signals[i]}return null}
 function toast(t){var e=$('#toast');e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){e.hidden=true},3200)}
+function obsParts(t){t=String(t||'').trim();if(t.indexOf('• ')!==0)return null;return t.split(/\s*•\s+/).filter(Boolean).map(function(x){var m=x.match(/^([^:]{2,24}):\s*(.*)$/);return m?{l:m[1],v:m[2]}:{l:'',v:x}})}
+function obsLead(t){var a=obsParts(t);return a&&a.length?a[0].v:t}
+function obsHtml(t){var a=obsParts(t);if(!a)return '<p class="txt">'+esc(t)+'</p>';return '<ul class="obs">'+a.map(function(x){return '<li>'+(x.l?'<b>'+esc(x.l)+'</b> ':'')+esc(x.v)+'</li>'}).join('')+'</ul>'}
 function excerpt(t,n){t=String(t||'').replace(/\s+/g,' ').trim();return t.length>n?t.slice(0,n-1)+'…':t}
 
 function filtered(){
@@ -1037,7 +1043,7 @@ function renderList(){
       '<button class="row-main" type="button" data-open="'+esc(s.id)+'">'+
         '<span class="r-k"><span class="r-dom">'+esc(lab(STEEP,s.steep)||'Sin dominio')+'</span><span>'+esc(s.horizonte||'—')+'</span><span>'+esc(lab(CLASE,s.clase))+'</span>'+(s.ejemplo?'<span class="tag-ej">ejemplo</span>':'')+'</span>'+
         '<span class="r-t">'+esc(s.titulo)+'</span>'+
-        (s.observacion?'<span class="r-o">'+esc(excerpt(s.observacion,230))+'</span>':'')+
+        (s.observacion?'<span class="r-o">'+esc(excerpt(obsLead(s.observacion),230))+'</span>':'')+
       '</button>'+
       srcRow(s)+
       '<div class="r-p">'+
@@ -1139,7 +1145,7 @@ function openDetail(id){
   h+='<div class="nat-q"><b>¿Cambio nuevo o algo que ya existía?</b><div class="seg" role="group">'+NATUR.map(function(o){return '<button type="button" class="nat-b'+(s.naturaleza===o.k?' on':'')+'" data-nat="'+o.k+'" data-id="'+esc(s.id)+'" aria-pressed="'+(s.naturaleza===o.k)+'">'+o.n+'</button>'}).join('')+(s.naturaleza?'<button type="button" class="nat-b clr" data-nat="" data-id="'+esc(s.id)+'">Quitar</button>':'')+'</div></div>';
 
   h+='<div class="sec"><h4>Qué se observó <small>Hecho y fuente</small></h4>';
-  if(s.observacion)h+='<div class="fld">'+fl('Observación','observacion')+'<p class="txt">'+esc(s.observacion)+'</p></div>';
+  if(s.observacion)h+='<div class="fld">'+fl('Observación','observacion')+obsHtml(s.observacion)+'</div>';
   h+=(s.natNota?'<div class="fld">'+fl('Naturaleza: por qué','naturaleza')+'<p class="txt">'+esc(s.natNota)+'</p></div>':'')+'<div class="fld">'+fl('Fuente','fuente')+(srcText(s.fuente)?'<p class="txt">'+esc(srcText(s.fuente))+'</p>':'')+(urls(s.fuente).length?'<div class="srcs">'+urls(s.fuente).map(function(u){return '<a class="srcb" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer"><b>Abrir fuente original ↗</b><span>'+esc(u)+'</span></a>'}).join('')+'</div>':'<p class="txt">Sin enlace registrado.</p>')+'</div>';
   h+='<div class="kv"><div>'+fl('Tipo de fuente','tipoFuente')+'<b>'+tv('tipoFuente',s.tipoFuente,esc(lab(FUENTE,s.tipoFuente)))+'</b></div>'+
      '<div><span class="fl">Fecha de observación</span><b>'+esc(s.fechaObs||'—')+'</b></div></div>';
@@ -1186,7 +1192,7 @@ function openForm(id){
 
   h+='<div class="sec"><h4>1 · Qué observé <small>Cap. VI · investigación</small></h4>'+
     '<div class="fld"><label class="fl" for="f-titulo">Título</label><input id="f-titulo" type="text" maxlength="140" value="'+esc(v.titulo)+'" placeholder="En pocas palabras, qué está cambiando"></div>'+
-    '<div class="fld"><span class="fl"><label for="f-obs">Observación</label>'+TI('observacion')+'</span><textarea id="f-obs" rows="3" placeholder="El hecho concreto: qué pasó, dónde, quién. Deja la interpretación para más abajo.">'+esc(v.observacion)+'</textarea></div>'+
+    '<div class="fld"><span class="fl"><label for="f-obs">Observación</label>'+TI('observacion')+'</span><textarea id="f-obs" rows="3" placeholder="• Qué pasó: … • Quién y dónde: … • El dato clave: … • Contexto: …">'+esc(v.observacion)+'</textarea></div>'+
     '<div class="g2"><div class="fld"><span class="fl"><label for="f-fuente">Fuente</label>'+TI('fuente')+'</span><input id="f-fuente" type="text" value="'+esc(v.fuente)+'" placeholder="Pega el enlace completo, o el nombre de la persona o comunidad"></div>'+
     '<div class="fld"><span class="fl"><label for="f-tf">Tipo de fuente</label>'+TI('tipoFuente')+'</span><select id="f-tf"><option value="">Sin definir</option>'+FUENTE.map(function(o){return '<option value="'+o.k+'"'+(v.tipoFuente===o.k?' selected':'')+'>'+o.n+'</option>'}).join('')+'</select></div></div>'+
     '<div class="g2"><div class="fld"><label class="fl" for="f-fecha">Fecha de observación</label><input id="f-fecha" type="date" value="'+esc(v.fechaObs)+'"></div>'+
