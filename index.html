@@ -476,6 +476,11 @@ h2 .fold{vertical-align:middle}
 .radar-key .k i{display:inline-block;border-radius:50%;background:var(--ink);vertical-align:middle;margin:0 4px 0 6px}
 .radar-key .d1{width:14px;height:14px;margin-left:0!important}.radar-key .d2{width:10px;height:10px}.radar-key .d3{width:7px;height:7px}
 @media (max-width:820px){.radar-w{grid-template-columns:1fr}}
+
+ul.trash{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+ul.trash li{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:6px}
+.tr-t{font:600 15.5px/1.3 var(--f-display)}
+.tr-m{font-size:13px;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
 #gate{position:fixed;inset:0;z-index:100;background:#0E2430;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background-image:repeating-radial-gradient(circle at 85% 10%,rgba(255,255,255,.07) 0 1px,transparent 1px 48px)}
@@ -569,6 +574,7 @@ h2 .fold{vertical-align:middle}
       <h2>Señales <span class="hint" id="lcount" style="margin-left:10px;font-weight:400"></span></h2>
       <div class="btns">
         <button class="btn sm ghost" type="button" data-act="gloss">Glosario</button>
+        <button class="btn sm ghost" id="b-trash" type="button" data-act="trash">Basurero (0)</button>
         <span class="btns" id="exp" hidden>
           <button class="btn sm ghost" id="b-md" type="button">Reporte (.md)</button>
           <button class="btn sm ghost" id="b-csv" type="button">Datos (.csv)</button>
@@ -695,7 +701,7 @@ var SESGOS=[
 ];
 function lab(list,k){for(var i=0;i<list.length;i++){if(list[i].k===k)return list[i].n}return ''}
 
-var S={signals:[],cfg:{},sigLoaded:false,db:null,dl:null,sm:null,imp:null,mode:'wait',
+var S={signals:[],trash:[],cfg:{},sigLoaded:false,db:null,dl:null,sm:null,imp:null,mode:'wait',
   f:{q:'',tema:'',steep:'',h:'',cert:'',clase:'',estado:'activas',rev:'',nat:''}};
 
 /* ---------- temas, glosario y tooltips ---------- */
@@ -883,6 +889,7 @@ function filtered(){
 
 
 /* ---------- render ---------- */
+function setSignals(all){S.trash=all.filter(function(x){return x.papelera});S.signals=all.filter(function(x){return !x.papelera})}
 function actives(list){return list.filter(function(s){return s.estado!=='descartada'})}
 function renderFrame(){
   var p=(S.cfg.pregunta||'').trim(),el=$('#fq');
@@ -1103,7 +1110,7 @@ function renderPressure(){
       '</div>';
   }).join('');
 }
-function renderAll(){renderFrame();renderThemes();renderPressure();renderStats();renderMatrix();renderList();renderFoot();renderEsc()}
+function renderAll(){renderTrashBtn();renderFrame();renderThemes();renderPressure();renderStats();renderMatrix();renderList();renderFoot();renderEsc()}
 
 /* ---------- detalle ---------- */
 function openDetail(id){
@@ -1161,7 +1168,7 @@ function openDetail(id){
   if(back.length){
     h+='<div class="fld"><span class="fl">También la mencionan</span><div class="links">'+back.map(function(x){return '<button class="btn sm ghost" type="button" data-open="'+esc(x.id)+'">'+esc(excerpt(x.titulo,48))+'</button>'}).join('')+'</div></div>';
   }
-  h+='</div><div class="d-f"><span class="msg" id="d-msg"></span><button class="btn danger" type="button" data-del="'+esc(s.id)+'">Eliminar</button><button class="btn" type="button" data-edit="'+esc(s.id)+'">Editar</button><button class="btn" type="button" data-act="rev" data-id="'+esc(s.id)+'">'+(s.revisada?'Quitar marca de revisada':'Marcar como revisada')+'</button><button class="btn pri" type="button" data-close="dlg">Cerrar</button></div></div>';
+  h+='</div><div class="d-f"><span class="msg" id="d-msg"></span><button class="btn danger" type="button" data-del="'+esc(s.id)+'">Mover al basurero</button><button class="btn" type="button" data-edit="'+esc(s.id)+'">Editar</button><button class="btn" type="button" data-act="rev" data-id="'+esc(s.id)+'">'+(s.revisada?'Quitar marca de revisada':'Marcar como revisada')+'</button><button class="btn pri" type="button" data-close="dlg">Cerrar</button></div></div>';
   dlg.innerHTML=h;
   if(!dlg.open)dlg.showModal();
 }
@@ -1238,8 +1245,8 @@ async function persist(sig){
   if(sig.revisada){if(!sig.revisadaEn)sig.revisadaEn=new Date().toISOString()}else sig.revisadaEn='';
   var clean=JSON.parse(JSON.stringify(sig));
   if(S.db)await S.db.collection('signals').doc(sig.id).set(clean);
-  var i=S.signals.findIndex(function(x){return x.id===sig.id});
-  if(i>=0)S.signals[i]=clean;else S.signals.push(clean);
+  S.signals=S.signals.filter(function(x){return x.id!==sig.id});S.trash=S.trash.filter(function(x){return x.id!==sig.id});
+  (clean.papelera?S.trash:S.signals).push(clean);
 }
 async function setNat(id,v){
   var s=byId(id);if(!s)return;
@@ -1270,12 +1277,40 @@ async function submitForm(f){
   catch(e){btn.disabled=false;msg.textContent='No se pudo guardar'+(e&&e.code?' ('+e.code+')':'')+'. Inténtalo de nuevo.'}
 }
 async function removeSignal(id){
+  var sg=byId(id);if(!sg)return;
   try{
-    if(S.db)await S.db.collection('signals').doc(id).delete();
-    S.signals=S.signals.filter(function(x){return x.id!==id});
-    $('#dlg').close();renderAll();toast('Señal eliminada');
-  }catch(e){var m=$('#d-msg');if(m)m.textContent='No se pudo eliminar.'}
+    var now=new Date().toISOString();
+    await persist(Object.assign({},sg,{papelera:true,papeleraEn:now,actualizado:now}));
+    $('#dlg').close();renderAll();toast('Señal movida al basurero. Si vuelve a aparecer, no entrará al radar.');
+  }catch(e){var m=$('#d-msg');if(m)m.textContent='No se pudo mover al basurero.'}
 }
+async function restoreSignal(id){
+  var sg=S.trash.filter(function(x){return x.id===id})[0];if(!sg)return;
+  try{await persist(Object.assign({},sg,{papelera:false,papeleraEn:'',actualizado:new Date().toISOString()}));renderAll();openTrash();toast('Señal restaurada al radar')}
+  catch(e){toast('No se pudo restaurar')}
+}
+async function purgeSignal(id){
+  try{if(S.db)await S.db.collection('signals').doc(id).delete();S.trash=S.trash.filter(function(x){return x.id!==id});renderAll();openTrash();toast('Eliminada para siempre')}
+  catch(e){toast('No se pudo eliminar')}
+}
+function openTrash(){
+  var dlg=$('#dlg');
+  var h='<div class="dview"><div class="d-h"><div><div class="eyebrow">Señales descartadas</div><h3 id="dlg-t">Basurero ('+S.trash.length+')</h3></div><button class="d-x" type="button" data-close="dlg" aria-label="Cerrar">×</button></div><div class="d-b">'+
+    '<p class="hint">Las señales de aquí no cuentan en el radar, el índice ni los reportes. Si un barrido o una importación las vuelve a traer, se quedan en el basurero.</p>';
+  if(!S.trash.length)h+='<div class="empty-box"><span>El basurero está vacío.</span></div>';
+  else{
+    h+='<ul class="trash">';
+    S.trash.slice().sort(function(a,b){return String(b.papeleraEn).localeCompare(String(a.papeleraEn))}).forEach(function(x){
+      var u=urls(x.fuente)[0];
+      h+='<li><div class="tr-t">'+esc(x.titulo)+'</div><div class="tr-m">'+esc(lab(STEEP,x.steep)||'')+(x.papeleraEn?' · movida el '+esc(String(x.papeleraEn).slice(0,10)):'')+(x.reapariciones?' · volvió a aparecer '+x.reapariciones+(x.reapariciones===1?' vez':' veces'):'')+(u?' · <a href="'+esc(u)+'" target="_blank" rel="noopener">fuente</a>':'')+'</div>'+
+        '<div class="btns"><button class="btn sm" type="button" data-restore="'+esc(x.id)+'">Restaurar</button><button class="btn sm danger" type="button" data-purge="'+esc(x.id)+'">Eliminar para siempre</button></div></li>';
+    });
+    h+='</ul><p class="hint">«Eliminar para siempre» borra la señal y deja de bloquearla: si reaparece, entrará de nuevo al radar.</p>';
+  }
+  h+='</div><div class="d-f"><button class="btn pri" type="button" data-close="dlg">Cerrar</button></div></div>';
+  dlg.innerHTML=h;if(!dlg.open)dlg.showModal();
+}
+function renderTrashBtn(){var b=$('#b-trash');if(b)b.textContent='Basurero ('+S.trash.length+')'}
 
 /* ---------- marco ---------- */
 function openFrame(){
@@ -1587,8 +1622,18 @@ async function runImport(){
   }
 }
 function showPreview(){
-  var exist={},exU={};S.signals.forEach(function(s){exist[normT(s.titulo)]=1;urls(s.fuente).forEach(function(u){exU[u]=1})});
-  S.imp.cands.forEach(function(c){c.dup=!!exist[normT(c.titulo)]||urls(c.fuente).some(function(u){return exU[u]});c.on=!c.dup});
+  var exist={},exU={},tr={},trU={};
+  S.signals.forEach(function(s){exist[normT(s.titulo)]=1;urls(s.fuente).forEach(function(u){exU[u]=1})});
+  S.trash.forEach(function(s){tr[normT(s.titulo)]=s;urls(s.fuente).forEach(function(u){trU[u]=s})});
+  var bump={};
+  S.imp.cands.forEach(function(c){
+    var t=tr[normT(c.titulo)]||urls(c.fuente).map(function(u){return trU[u]}).filter(Boolean)[0];
+    c.trash=!!t;
+    c.dup=c.trash||!!exist[normT(c.titulo)]||urls(c.fuente).some(function(u){return exU[u]});
+    c.on=!c.dup;
+    if(t&&!c.bumped){c.bumped=1;bump[t.id]=t}
+  });
+  Object.keys(bump).forEach(function(id){var t=bump[id];persist(Object.assign({},t,{reapariciones:(t.reapariciones||0)+1,actualizado:new Date().toISOString()})).catch(function(){})});
   renderPreview();
 }
 function selHtml(list,val,field,i,label,ph){
@@ -1604,7 +1649,7 @@ function renderPreview(){
   h+='<p class="hint" style="margin:0">'+(I.direct?'Leídas del archivo tal como vienen, sin pasar por Claude. La fuente de cada señal se conserva.':'Claude propone la clasificación a partir del texto. El horizonte y la certeza son su juicio sobre la evidencia que aparece, no un dato verificado. Ajústalos aquí o después en cada señal.')+(I.trunc?' Se analizaron solo los primeros '+IMP_MAX+' caracteres.':'')+'</p><div class="cands">';
   I.cands.forEach(function(c,i){
     h+='<div class="cand'+(c.on?'':' off')+'"><input type="checkbox" data-ci="'+i+'"'+(c.on?' checked':'')+' aria-label="Incluir esta señal"><div>'+
-      '<div class="cand-t">'+esc(c.titulo)+(c.dup?' <span class="tag-ej">ya está en el radar</span>':'')+'</div>'+
+      '<div class="cand-t">'+esc(c.titulo)+(c.trash?' <span class="tag-ej">en el basurero: no se importa</span>':c.dup?' <span class="tag-ej">ya está en el radar</span>':'')+'</div>'+
       '<div class="cand-sel">'+selHtml(TEMA,c.tema,'tema',i,'Tema','Elegir tema')+selHtml(STEEP,c.steep,'steep',i,'Dominio','Elegir dominio')+selHtml(hs,c.horizonte,'horizonte',i,'Horizonte')+selHtml(cs,c.certeza,'certeza',i,'Certeza')+'</div>'+
       '<p class="hint">'+esc(excerpt(c.observacion,280))+'</p>'+
       (c.fuente?'<p class="hint"><b>Fuente:</b> '+linkify(excerpt(c.fuente,260))+'</p>':'')+
@@ -1628,7 +1673,7 @@ async function saveImport(){
     for(var i=0;i<sel.length;i++){
       var c=sel[i],now=new Date().toISOString();
       var sig=Object.assign({},c,{id:newId()+i.toString(36),sesgos:{pasado:false,linea:false,optimismo:false},conexiones:[],origen:'importar-'+today(),creado:now,actualizado:now});
-      delete sig.dup;delete sig.on;
+      delete sig.dup;delete sig.on;delete sig.trash;delete sig.bumped;
       await persist(sig);
       c.on=false;n++;
     }
@@ -1987,7 +2032,7 @@ function bindEsc(){
     else if(a==='del'){
       var id=t.getAttribute('data-set');
       if(t.getAttribute('data-sure'))escRemove(id);
-      else{t.setAttribute('data-sure','1');t.textContent='Confirmar: eliminar';setTimeout(function(){if(t.isConnected){t.removeAttribute('data-sure');t.textContent='Eliminar'}},4000)}
+      else{t.setAttribute('data-sure','1');t.textContent='Confirmar: mover al basurero';setTimeout(function(){if(t.isConnected){t.removeAttribute('data-sure');t.textContent='Mover al basurero'}},4000)}
     }
     else if(!E)return;
     else if(a==='stop'){if(E.ctl)E.ctl.abort()}
@@ -2217,11 +2262,13 @@ function bind(){
   document.addEventListener('click',function(e){
     var ti=e.target.closest('.tip-i');
     if(ti){e.preventDefault();tipShow(ti);return}
-    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema],[data-nat],[data-view]');
+    var t=e.target.closest('[data-open],[data-edit],[data-del],[data-close],[data-act],[data-cell],[data-tema],[data-nat],[data-view],[data-restore],[data-purge]');
     if(!t){tipHide();return}
     if(t.hasAttribute('data-close')){$('#'+t.getAttribute('data-close')).close();return}
     if(t.hasAttribute('data-open')){openDetail(t.getAttribute('data-open'));return}
     if(t.hasAttribute('data-edit')){openForm(t.getAttribute('data-edit'));return}
+    if(t.hasAttribute('data-restore')){restoreSignal(t.getAttribute('data-restore'));return}
+    if(t.hasAttribute('data-purge')){if(t.getAttribute('data-sure')){purgeSignal(t.getAttribute('data-purge'))}else{t.setAttribute('data-sure','1');t.textContent='Confirmar: borrar';setTimeout(function(){if(t.isConnected){t.removeAttribute('data-sure');t.textContent='Eliminar para siempre'}},4000)}return}
     if(t.hasAttribute('data-view')){try{localStorage.setItem('radar-vista',t.getAttribute('data-view'))}catch(e){}renderMatrix();return}
     if(t.hasAttribute('data-nat')){setNat(t.getAttribute('data-id'),t.getAttribute('data-nat'));return}
     if(t.hasAttribute('data-tema')){setTema(t.getAttribute('data-tema'));return}
@@ -2240,6 +2287,7 @@ function bind(){
     var a=t.getAttribute('data-act');
     if(a==='new')openForm();
     else if(a==='rev'){toggleRev(t.getAttribute('data-id'));return}
+    else if(a==='trash'){openTrash();return}
     else if(a==='examples')loadExamples();
     else if(a==='rmexamples')removeExamples();
     else if(a==='imp-back')openImport(true);
@@ -2282,7 +2330,7 @@ var TBL={signals:'radar_senales',escenarios:'radar_escenarios'};
 function nul(v){return (v===''||v===undefined)?null:v}
 function sigToRow(o){
   var r={id:o.id,titulo:o.titulo||'',tema:nul(o.tema),steep:o.steep,clase:o.clase||'debil',horizonte:o.horizonte||'H2',certeza:o.certeza||'baja',impacto:o.impacto||'medio',
-    polaridad:nul(o.polaridad),naturaleza:nul(o.naturaleza),naturaleza_nota:o.natNota||'',revisada:!!o.revisada,revisada_en:o.revisadaEn||null,fuerza:nul(o.fuerza),estado:o.estado||'nueva',tipo_fuente:nul(o.tipoFuente),
+    polaridad:nul(o.polaridad),naturaleza:nul(o.naturaleza),naturaleza_nota:o.natNota||'',revisada:!!o.revisada,revisada_en:o.revisadaEn||null,papelera:!!o.papelera,papelera_en:o.papeleraEn||null,reapariciones:o.reapariciones||0,fuerza:nul(o.fuerza),estado:o.estado||'nueva',tipo_fuente:nul(o.tipoFuente),
     fecha_observacion:/^\d{4}-\d\d-\d\d$/.test(o.fechaObs||'')?o.fechaObs:null,
     observacion:o.observacion||'',fuente:o.fuente||'',enlaces:urls((o.fuente||'')).filter(function(u,i,a){return a.indexOf(u)===i}),
     etiquetas:o.etiquetas||[],orden_1:o.o1||'',orden_2:o.o2||'',orden_3:o.o3||'',contraevidencia:o.contra||'',por_averiguar:o.averiguar||'',
@@ -2293,7 +2341,7 @@ function sigToRow(o){
 }
 function sigFromRow(r){
   return {id:r.id,titulo:r.titulo,tema:r.tema||'',steep:r.steep,clase:r.clase,horizonte:r.horizonte,certeza:r.certeza,impacto:r.impacto,
-    polaridad:r.polaridad||'',naturaleza:r.naturaleza||'',natNota:r.naturaleza_nota||'',revisada:!!r.revisada,revisadaEn:r.revisada_en||'',fuerza:r.fuerza||'',estado:r.estado,tipoFuente:r.tipo_fuente||'',fechaObs:r.fecha_observacion||'',
+    polaridad:r.polaridad||'',naturaleza:r.naturaleza||'',natNota:r.naturaleza_nota||'',revisada:!!r.revisada,revisadaEn:r.revisada_en||'',papelera:!!r.papelera,papeleraEn:r.papelera_en||'',reapariciones:r.reapariciones||0,fuerza:r.fuerza||'',estado:r.estado,tipoFuente:r.tipo_fuente||'',fechaObs:r.fecha_observacion||'',
     observacion:r.observacion||'',fuente:r.fuente||'',etiquetas:r.etiquetas||[],o1:r.orden_1||'',o2:r.orden_2||'',o3:r.orden_3||'',
     contra:r.contraevidencia||'',averiguar:r.por_averiguar||'',siguiente:r.siguiente_paso||'',sesgos:r.sesgos||{},conexiones:r.conexiones||[],
     origen:r.origen||'',ejemplo:!!r.ejemplo,creado:r.creado,actualizado:r.actualizado};
@@ -2377,7 +2425,7 @@ async function init(){
     }};
     var lb=document.getElementById('i-go');
     S.db.collection('signals').onSnapshot(function(snap){
-      S.signals=snap.docs.map(function(d){return d.data()});S.sigLoaded=true;$('#dbnote').innerHTML='';renderAll();
+      setSignals(snap.docs.map(function(d){return d.data()}));S.sigLoaded=true;$('#dbnote').innerHTML='';renderAll();
     },function(err){S.sigLoaded=true;$('#dbnote').innerHTML='<div class="notice">No se pudieron leer las señales ('+esc(err.code||err.message||'error')+').</div>';renderAll()});
     S.db.collection('escenarios').onSnapshot(function(snap){
       S.escs=snap.docs.map(function(d){return d.data()}).filter(function(o){return o.ejes&&Array.isArray(o.escenarios)});renderEsc();
